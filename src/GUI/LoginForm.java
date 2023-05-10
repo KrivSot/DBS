@@ -1,15 +1,12 @@
 package GUI;
 
 import Database.SQLOperations;
-import Models.SelectedData;
 
 import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.*;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Objects;
 
 public class LoginForm extends JFrame {
 
@@ -36,54 +33,74 @@ public class LoginForm extends JFrame {
         username.setBorder(BorderFactory.createTitledBorder("Username"));
         JPasswordField password = new JPasswordField();
         password.setBorder(BorderFactory.createTitledBorder("Password"));
+        JPanel panel2 = new JPanel();
+        JButton b = new JButton("Přihlásit se jako zákazník");
+        b.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                try {
+                    GUI gui = new GUI(getWidth(), getHeight(), sql, "Zakaznik", -1);
+                    gui.setVisible(true);
+                    dispose();
+                } catch (SQLException ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
+        });
         JButton button = new JButton("Login");
         button.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (!username.getText().isEmpty() && !password.getText().isEmpty()) {
-                    String[] arrOfStr = password.getText().split("\\.", 3);
-                    try {
-                        ArrayList<String> dataZ = sql.ExecuteSelectQuery("SELECT * FROM ZAKAZNIK WHERE Jmeno = '" + arrOfStr[0] + "' AND Prijmeni ='" + arrOfStr[1] + "' AND ZakaznikID = '" + arrOfStr[2] + "'");
-                        ArrayList<String> dataS = sql.ExecuteSelectQuery("SELECT * FROM Skladnik WHERE Jmeno = '" + arrOfStr[0] + "' AND Prijmeni ='" + arrOfStr[1] + "' AND SkladnikID = '" + arrOfStr[2] + "'");
-                        if (dataZ.size() > 0) {
-                            GUI gui = new GUI(getWidth(), getHeight(), sql, "Zakaznik", Integer.parseInt(arrOfStr[2]));
+                    if (username.getText().equals("admin") && password.getText().equals("Adm1n")) {
+                        try {
+                            GUI gui = new GUI(getWidth(), getHeight(), sql, "Admin", -1);
                             gui.setVisible(true);
-                            hide();
-                            return;
+                            dispose();
+                        } catch (SQLException ex) {
+                            throw new RuntimeException(ex);
                         }
-                        else if(dataS.size() > 0){
-                            GUI gui = new GUI(getWidth(), getHeight(), sql, "Skladnik", Integer.parseInt(arrOfStr[2]));
-                            gui.setVisible(true);
-                            hide();
-                            return;
+                    } else {
+                        String[] passwordParts = password.getText().split("\\.", 3);
+                        String[] usernameParts = username.getText().split("\\.", 3);
+                        try {
+                            if(passwordParts.length < 3 || usernameParts.length < 3){authErr(); return;}
+                            ArrayList<String> dataZP = sql.ExecuteSelectQuery("SELECT * FROM ZAKAZNIK WHERE Jmeno = '" + passwordParts[0] + "' AND Prijmeni ='" + passwordParts[1] + "' AND ZakaznikID = '" + passwordParts[2] + "'");
+                            ArrayList<String> dataSP = sql.ExecuteSelectQuery("SELECT * FROM Skladnik WHERE Jmeno = '" + passwordParts[0] + "' AND Prijmeni ='" + passwordParts[1] + "' AND SkladnikID = '" + passwordParts[2] + "'");
+
+                            ArrayList<String> dataZU = sql.ExecuteSelectQuery("SELECT * FROM ZAKAZNIK WHERE Jmeno = '" + usernameParts[2] + "' AND Prijmeni ='" + usernameParts[1] + "' AND ZakaznikID = '" + usernameParts[0] + "'");
+                            ArrayList<String> dataSU = sql.ExecuteSelectQuery("SELECT * FROM Skladnik WHERE Jmeno = '" + usernameParts[2] + "' AND Prijmeni ='" + usernameParts[1] + "' AND SkladnikID = '" + usernameParts[0] + "'");
+                            if (dataZP.size() > 0 && dataZU.size() > 0) {
+                                GUI gui = new GUI(getWidth(), getHeight(), sql, "Zakaznik", Integer.parseInt(passwordParts[2]));
+                                gui.setVisible(true);
+                                dispose();
+                            } else if (dataSP.size() > 0 && dataSU.size() > 0) {
+                                GUI gui = new GUI(getWidth(), getHeight(), sql, "Skladnik", Integer.parseInt(passwordParts[2]));
+                                gui.setVisible(true);
+                                dispose();
+                            }
+                            else{
+                                authErr();
+                            }
+                        } catch (SQLException ex) {
+                            throw new RuntimeException(ex);
                         }
-                    } catch (SQLException ex) {
-                        throw new RuntimeException(ex);
-                    }
-                }
-                if(username.getText().equals("admin") && password.getText().equals("Adm1n")){
-                    try {
-                        GUI gui = new GUI(getWidth(),getHeight(),sql,"Admin",-1);
-                        gui.setVisible(true);
-                        hide();
-                    } catch (SQLException ex) {
-                        throw new RuntimeException(ex);
                     }
                 }
                 else {
-                    try {
-                        GUI gui = new GUI(getWidth(),getHeight(),sql,"Skladnik",13);
-                        gui.setVisible(true);
-                        hide();
-                    } catch (SQLException ex) {
-                        throw new RuntimeException(ex);
-                    }
+                    authErr();
                 }
             }
         });
         panel.add(username);
         panel.add(password);
-        panel.add(button);
+        panel2.add(button);
+        panel2.add(b);
+        panel.add(panel2);
         return panel;
+    }
+
+    public void authErr(){
+        JOptionPane.showMessageDialog(this, "Špatné uživatelské údaje!");
     }
 }

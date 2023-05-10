@@ -52,7 +52,7 @@ public class OperationsForm extends JFrame {
         panel.setLayout(new BoxLayout(panel, BoxLayout.PAGE_AXIS));
         for(int i = 0;i< collumsName.length;i++) {
             JTextField textField = new JTextField("",50);
-            if(i == 0 && mode == Mode.EDIT)
+            if((i == 0 && mode == Mode.EDIT) || i == 0)
             {
                 textField.setEditable(false);
             }
@@ -113,7 +113,7 @@ public class OperationsForm extends JFrame {
 
     public void addData() throws SQLException {
         String query = "INSERT INTO "+table +" (";
-        for(int i = 0; i < collumsName.length;i++)
+        for(int i = 1; i < collumsName.length;i++)
         {
             if(i != collumsName.length-1) {
                 query += collumsName[i] + ", " ;
@@ -123,7 +123,7 @@ public class OperationsForm extends JFrame {
             }
         }
         query += ")\t VALUES (";
-        for(int i = 0; i < collumsName.length;i++)
+        for(int i = 1; i < collumsName.length;i++)
         {
             if(i != collumsName.length-1) {
                 query += "'"+textFields.get(i).getText()+"', ";
@@ -134,11 +134,14 @@ public class OperationsForm extends JFrame {
         }
         query += ");";
         sql.ExecuteQuery(query);
+        JOptionPane.showMessageDialog(this, "Data byly uspesne pridany");
     }
 
     public void deleteData() throws SQLException {
         String query = "DELETE FROM "+table +" WHERE "+collumsName[0]+"= '"+selectedID+"';";
         sql.ExecuteQuery(query);
+        JOptionPane.showMessageDialog(this, "Data byly uspesne smazany");
+        dispose();
     }
 
     public void editData() throws SQLException {
@@ -154,6 +157,8 @@ public class OperationsForm extends JFrame {
         }
         query += "WHERE "+collumsName[0]+" = '"+selectedID+"';";
         sql.ExecuteQuery(query);
+        JOptionPane.showMessageDialog(this, "Data byly uspesne zmeneny");
+        dispose();
     }
 
     public boolean FKExists() throws SQLException {

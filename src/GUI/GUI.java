@@ -8,6 +8,8 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.*;
 import java.sql.SQLException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
 public class GUI extends JFrame {
@@ -24,6 +26,7 @@ public class GUI extends JFrame {
     private String user;
     private final SelectedData selectedData;
     private int userID;
+    private boolean orderingProduct;
     boolean doubleclickEnabled = true;
     public GUI(int width, int height, SQLOperations sql, String user, int userID) throws SQLException {
         super("DBS2 Project");
@@ -97,17 +100,21 @@ public class GUI extends JFrame {
             }
             else {
                 popup = new JPopupMenu();
-                JMenuItem menuItem = new JMenuItem("Objednávka připravena");
+                JMenuItem menuItem = new JMenuItem("Objednávka Dokončena");
                 menuItem.addActionListener(new ActionListener() {
                     @Override
                     public void actionPerformed(ActionEvent e) {
                         try {
                             updateSelectedData();
+                            String produktID = sql.ExecuteSelectQuery("Select FK_Produkt from OBJEDNAVKA where ObjednavkaID = "+selectedID+";").get(0);
+                            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+                            LocalDateTime now = LocalDateTime.now();
+                            sql.ExecuteQuery("UPDATE Objednavka\n" +
+                                    "SET FK_Stav = 5, DatumPrevzeti = '"+dtf.format(now)+"' \n" +
+                                    "WHERE ObjednavkaID = "+selectedID+";");
+                            sql.ExecuteQuery("UPDATE PRODUKT SET FK_STAV = 2 WHERE ProduktID = "+Integer.parseInt(produktID)+";");
                         } catch (SQLException ex) {
                             throw new RuntimeException(ex);
-                        }
-                        if(user.equals("Admin")) {
-                            OperationsForm add = new OperationsForm(getWidth(), getHeight(), sql, Mode.ADD, selectedData);
                         }
                     }
                 });
@@ -118,11 +125,13 @@ public class GUI extends JFrame {
                     public void actionPerformed(ActionEvent e) {
                         try {
                             updateSelectedData();
+                            String produktID = sql.ExecuteSelectQuery("Select FK_Produkt from OBJEDNAVKA where ObjednavkaID = "+selectedID+";").get(0);
+                            sql.ExecuteQuery("UPDATE Objednavka\n" +
+                                    "SET FK_Stav = 4, DatumPrevzeti = '' \n" +
+                                    "WHERE ObjednavkaID = "+selectedID+";");
+                            sql.ExecuteQuery("UPDATE PRODUKT SET FK_STAV = 4 WHERE ProduktID = "+Integer.parseInt(produktID)+";");
                         } catch (SQLException ex) {
                             throw new RuntimeException(ex);
-                        }
-                        if(user.equals("Admin")) {
-                            OperationsForm delete = new OperationsForm(getWidth(), getHeight(), sql, Mode.DELETE, selectedData);
                         }
                     }
                 });
@@ -162,12 +171,19 @@ public class GUI extends JFrame {
                     if (e.getClickCount() == 2 && !e.isConsumed() && doubleclickEnabled) {
                         e.consume();
                         try {
-                            CreateOrder c = new CreateOrder(getWidth(),getHeight(),sql,selectedData,user);
-                        } catch (SQLException ex) {
+                            if(!user.equals("Admin")) {
+                                if (orderingProduct) {
+                                    CreateOrder c = new CreateOrder(getWidth(), getHeight(), sql, selectedData, user);
+                                } else {
+                                    jt.setModel(sql.getDatafromView("SELECT A.ObjednavkaID AS 'ID Objednávky', A.DatumVytvoreniObjednavky AS 'Datum vytvoření', A.DatumPrevzeti AS 'Datum převzetí', A.Mnozstvi AS 'Množství', D.Nazev AS 'Název produktu', E.Stav AS 'Stav', A.Cena AS 'Cena', C.Typ_meny AS 'Měna', F.Jmeno AS 'Jméno', F.Prijmeni AS 'Příjmení', B.Ulice AS 'Ulice', B.Cislo_popisne AS 'ČP', B.Mesto AS 'Město', B.PSC AS 'PSČ' \n" +
+                                            "FROM Objednavka A, Adresa B, Mena C, Produkt D, Stavy E, Zakaznik F\n" +
+                                            "WHERE B.AdresaID = A.FK_Adresa AND C.MenaID = A.FK_Mena AND D.ProduktID = A.FK_Produkt AND E.StavyID = A.FK_Stav AND A.FK_Zakaznik = F.ZakaznikID AND A.ObjednavkaID = " + selectedID + ";"));
+                                }
+                            }
+                            } catch (SQLException ex) {
                             throw new RuntimeException(ex);
                         }
                     }
-
                 }
             });
         sp.addMouseListener(new MouseAdapter() {
@@ -193,12 +209,14 @@ public class GUI extends JFrame {
     public JMenuBar initMenuBar() {
         JMenuBar menuBar = new JMenuBar();
         JMenu menu = new JMenu("Zobraz");
+        JMenu menu2 = new JMenu("Objednat");
         menu.setMnemonic(KeyEvent.VK_A);
         menu.getAccessibleContext().setAccessibleDescription(
                 "The only menu in this program that has menu items");
         menuBar.add(menu);
+        if(user.equals("Skladnik")) menuBar.add(menu2);
 
-        JMenuItem menuItem = new JMenuItem("Zobrazit mé objednávky",
+        JMenuItem menuItem = new JMenuItem("Zobrazit objednávky",
                 KeyEvent.VK_T);
         menuItem.setAccelerator(KeyStroke.getKeyStroke(
                 KeyEvent.VK_1, ActionEvent.ALT_MASK));
@@ -207,18 +225,23 @@ public class GUI extends JFrame {
         menuItem.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
+                orderingProduct = false;
                 try {
-                    if(user.equals("Zakaznik")) {
+                    if (user.equals("Zakaznik")) {
                         doubleclickEnabled = false;
                         model = sql.getDatafromView("SELECT A.ObjednavkaID AS 'ID Objednávky', A.DatumVytvoreniObjednavky AS 'Datum vytvoření', A.DatumPrevzeti AS 'Datum převzetí', A.Mnozstvi AS 'Množství', D.Nazev AS 'Název produktu', E.Stav AS 'Stav', A.Cena AS 'Cena', C.Typ_meny AS 'Měna', F.Jmeno AS 'Jméno', F.Prijmeni AS 'Příjmení', B.Ulice AS 'Ulice', B.Cislo_popisne AS 'ČP', B.Mesto AS 'Město', B.PSC AS 'PSČ' \n" +
                                 "FROM Objednavka A, Adresa B, Mena C, Produkt D, Stavy E, Zakaznik F\n" +
                                 "WHERE B.AdresaID = A.FK_Adresa AND C.MenaID = A.FK_Mena AND D.ProduktID = A.FK_Produkt AND E.StavyID = A.FK_Stav AND A.FK_Zakaznik = F.ZakaznikID AND A.FK_Zakaznik = " + userID + ";");
-                    }
-                    else if(user.equals("Skladnik")) {
+                    } else if (user.equals("Skladnik")) {
                         doubleclickEnabled = false;
                         model = sql.getDatafromView("SELECT A.ObjednavkaID AS 'ID Objednávky', A.DatumVytvoreniObjednavky AS 'Datum vytvoření', A.DatumPrevzeti AS 'Datum převzetí', A.Mnozstvi AS 'Množství', D.Nazev AS 'Název produktu', E.Stav AS 'Stav', A.Cena AS 'Cena', C.Typ_meny AS 'Měna', F.Jmeno AS 'Jméno', F.Prijmeni AS 'Příjmení', B.Ulice AS 'Ulice', B.Cislo_popisne AS 'ČP', B.Mesto AS 'Město', B.PSC AS 'PSČ' \n" +
                                 "FROM Objednavka A, Adresa B, Mena C, Produkt D, Stavy E, Zakaznik F\n" +
                                 "WHERE B.AdresaID = A.FK_Adresa AND C.MenaID = A.FK_Mena AND D.ProduktID = A.FK_Produkt AND E.StavyID = A.FK_Stav AND A.FK_Zakaznik = F.ZakaznikID AND (A.FK_Stav = 4 OR A.FK_Stav = 5);");
+                    } else {
+                        doubleclickEnabled = false;
+                        model = sql.getDatafromView("SELECT A.ObjednavkaID AS 'ID Objednávky', A.DatumVytvoreniObjednavky AS 'Datum vytvoření', A.DatumPrevzeti AS 'Datum převzetí', A.Mnozstvi AS 'Množství', D.Nazev AS 'Název produktu', E.Stav AS 'Stav', A.Cena AS 'Cena', C.Typ_meny AS 'Měna', F.Jmeno AS 'Jméno', F.Prijmeni AS 'Příjmení', B.Ulice AS 'Ulice', B.Cislo_popisne AS 'ČP', B.Mesto AS 'Město', B.PSC AS 'PSČ' \n" +
+                                "FROM Objednavka A, Adresa B, Mena C, Produkt D, Stavy E, Zakaznik F\n" +
+                                "WHERE B.AdresaID = A.FK_Adresa AND C.MenaID = A.FK_Mena AND D.ProduktID = A.FK_Produkt AND E.StavyID = A.FK_Stav AND A.FK_Zakaznik = F.ZakaznikID;");
                     }
                 } catch (SQLException ex) {
                     throw new RuntimeException(ex);
@@ -229,10 +252,10 @@ public class GUI extends JFrame {
 
         menu.add(menuItem);
 
-        menuItem = new JMenuItem("Zobraz produkty",
+        menuItem = new JMenuItem("Zobraz dostupné produkty",
                 KeyEvent.VK_T);
         menuItem.setAccelerator(KeyStroke.getKeyStroke(
-                KeyEvent.VK_1, ActionEvent.ALT_MASK));
+                KeyEvent.VK_2, ActionEvent.ALT_MASK));
         menuItem.getAccessibleContext().setAccessibleDescription(
                 "Open Image");
         menuItem.addActionListener(new ActionListener() {
@@ -245,14 +268,15 @@ public class GUI extends JFrame {
                 }
                 try {
                     doubleclickEnabled = true;
-                    if(user.equals("Zakaznik")) {
+                    orderingProduct = true;
+                    if (user.equals("Zakaznik")) {
                         model = sql.getDatafromView("SELECT A.ProduktID AS 'ID Produktu', A.Nazev AS 'Název', A.Barva AS 'Barva', B.Nazev_materialu AS 'Materiál', C.Nazev AS 'Sklad', D.Stav AS 'Stav', A.Cena AS 'Cena' \n" +
                                 "FROM Produkt A, Material B, Sklad C, Stavy D\n" +
                                 "WHERE B.MaterialID = A.FK_Material AND C.SkladID = A.FK_Sklad AND D.StavyID = A.FK_Stav AND A.FK_Stav = 1");
-                    }
-                    else model = sql.getDatafromView("SELECT A.ProduktID AS 'ID Produktu', A.Nazev AS 'Název', A.Barva AS 'Barva', B.Nazev_materialu AS 'Materiál', C.Nazev AS 'Sklad', D.Stav AS 'Stav', A.Cena AS 'Cena' \n" +
-                            "FROM Produkt A, Material B, Sklad C, Stavy D\n" +
-                            "WHERE B.MaterialID = A.FK_Material AND C.SkladID = A.FK_Sklad AND D.StavyID = A.FK_Stav");
+                    } else
+                        model = sql.getDatafromView("SELECT A.ProduktID AS 'ID Produktu', A.Nazev AS 'Název', A.Barva AS 'Barva', B.Nazev_materialu AS 'Materiál', C.Nazev AS 'Sklad', D.Stav AS 'Stav', A.Cena AS 'Cena' \n" +
+                                "FROM Produkt A, Material B, Sklad C, Stavy D\n" +
+                                "WHERE B.MaterialID = A.FK_Material AND C.SkladID = A.FK_Sklad AND D.StavyID = A.FK_Stav");
                 } catch (SQLException ex) {
                     throw new RuntimeException(ex);
                 }
@@ -260,6 +284,52 @@ public class GUI extends JFrame {
             }
         });
         menu.add(menuItem);
+        if(user.equals("Skladnik")){
+            menuItem = new JMenuItem("Zobraz nové objednávky",
+                    KeyEvent.VK_T);
+            menuItem.setAccelerator(KeyStroke.getKeyStroke(
+                    KeyEvent.VK_3, ActionEvent.ALT_MASK));
+            menuItem.getAccessibleContext().setAccessibleDescription(
+                    "Open Image");
+            menuItem.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    try {
+                        updateSelectedData();
+                    } catch (SQLException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                    try {
+                        doubleclickEnabled = true;
+                        orderingProduct = false;
+                        model = sql.getDatafromView("SELECT * FROM ZaznamyObjednavek;");
+                    } catch (SQLException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                    jt.setModel(model);
+                }
+            });
+            menu.add(menuItem);
+
+            menuItem = new JMenuItem("Objednat Produkt",
+                    KeyEvent.VK_T);
+            menuItem.setAccelerator(KeyStroke.getKeyStroke(
+                    KeyEvent.VK_3, ActionEvent.CTRL_MASK));
+            menuItem.getAccessibleContext().setAccessibleDescription(
+                    "Open Image");
+            menuItem.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    try {
+                        OrderProduct op = new OrderProduct(getWidth(),getHeight(),sql);
+                        op.setVisible(true);
+                    } catch (SQLException ex) {
+                        throw new RuntimeException(ex);
+                    }
+                }
+            });
+            menu2.add(menuItem);
+        }
         return menuBar;
     }
 
@@ -267,7 +337,12 @@ public class GUI extends JFrame {
     {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.CENTER));
         JTextField jTxtField = new JTextField("",50);
-        this.tableCombobox = new JComboBox(this.tableListSkladnik);
+        if(user.equals("Admin")){
+            this.tableCombobox = new JComboBox(this.tableListAdmin);
+        }
+        else {
+            this.tableCombobox = new JComboBox(this.tableListSkladnik);
+        }
         this.table = tableCombobox.getSelectedItem().toString();
         tableCombobox.addActionListener(new ActionListener() {
             @Override
@@ -285,10 +360,9 @@ public class GUI extends JFrame {
             @Override
             public void keyPressed(KeyEvent e) {
                 super.keyPressed(e);
-                //TODO add SQL search query
             }
         });
-        panel.add(jTxtField);
+        //panel.add(jTxtField);
         panel.add(tableCombobox);
         return panel;
     }
