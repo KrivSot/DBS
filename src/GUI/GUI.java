@@ -34,6 +34,7 @@ public class GUI extends JFrame {
         this.sql = sql;
         this.user = user;
         this.userID = userID;
+        orderingProduct = true;
         //sql.tryConnection();
         setSize(width,height);
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
