@@ -167,7 +167,8 @@ public class OperationsForm extends JFrame {
         for(int i = 0;i < indexesOfFK.size();i++)
         {
             String[] columnsOfTable = sql.getTableColumns(FKtables.get(i));
-            testdata = sql.ExecuteSelectQuery("SELECT * FROM "+FKtables.get(i)+" WHERE "+columnsOfTable[0]+" = '"+textFields.get(indexesOfFK.get(i)).getText()+"';");
+            if(FKtables.get(i).equals("Stav")) testdata = sql.ExecuteSelectQuery("SELECT * FROM Stavy WHERE "+columnsOfTable[0]+" = '"+textFields.get(indexesOfFK.get(i)).getText()+"';");
+            else testdata = sql.ExecuteSelectQuery("SELECT * FROM "+FKtables.get(i)+" WHERE "+columnsOfTable[0]+" = '"+textFields.get(indexesOfFK.get(i)).getText()+"';");
             if(testdata.size() == 0){
                 System.out.println("Cizí klíč FK_"+FKtables.get(i)+" s ID "+textFields.get(indexesOfFK.get(i)).getText()+" nebyl nalezen v tabulce "+FKtables.get(i)); return false;
             }
